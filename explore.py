@@ -5,24 +5,64 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from scipy import stats
 
-def train_validate_test_split(df, target, seed=123):
-    '''
-    This function takes in a dataframe, the name of the target variable
-    (for stratification purposes), and an integer for a setting a seed
-    and splits the data into train, validate and test. 
-    Test is 20% of the original dataset, validate is .30*.80= 24% of the 
-    original dataset, and train is .70*.80= 56% of the original dataset. 
-    The function returns, in this order, train, validate and test dataframes. 
-    '''
-    train_validate, test = train_test_split(df, test_size=0.2, 
-                                            random_state=seed, 
-                                            stratify=df[target])
-    train, validate = train_test_split(train_validate, test_size=0.3, 
-                                       random_state=seed,
-                                       stratify=train_validate[target])
-    return train, validate, test
+# function to plot counts all the object columns 
+def plot_counts(df):
+    for col in df.columns:
+        # skip over customer ID
+        if col == 'customer_id':
+            continue
+        if df[col].dtype == 'object':
+            plt.figure(figsize=(8,6))
+            sns.countplot(df[col])
+            plt.title(f'{col} counts')
+            plt.show()
 
+# function to explore continuous values
+def subplot(df):
+    '''returns countplots and displots of all columns in dataframe in relation to churn'''
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            sns.countplot(data=train, hue=(df[col]) , x = 'churn', palette=('spring_r')) 
+            plt.title(f'{col} and Churn')
+            plt.show()
+        sns.displot(train, x=(df[col]), hue = 'churn', multiple= 'stack', palette=('spring_r'))
+        plt.title(f'{col} and Churn')
+        plt.show()
 
+#function to explore and review model metrics
+def model_metrics(X, y, model, data_set = 'data_set'):
+    """
+    
+    Takes in X , target as y, the model for testing, and the data set(i.e. train, validate, test)\n
+    Outputs a print list with the confusion matrix, classification report, confusion matrix, and the T/F +/- rate
+   
+   """
+    score = model.score(X, y)
+    matrix = confusion_matrix(y, model.predict(X))
+    tpr = matrix[1,1] / (matrix[1,1] + matrix[1,0])
+    fpr = matrix[0,1] / (matrix[0,1] + matrix[0,0])
+    tnr = matrix[0,0] / (matrix[0,0] + matrix[0,1])
+    fnr = matrix[1,0] / (matrix[1,1] + matrix[1,0])
+    prc = matrix[1,1] / (matrix[1,1] + matrix[0,1])
+    
+    print(f'{data_set} accuracy score: {score:.2%}')
+    print(f'{data_set} precision score {prc:.2%}')
+    print(f'{data_set} recall score: {tpr:.2%}\n')
+    class_report = classification_report(y, model.predict(X), zero_division=True)
+    print('-------------------------------')
+    print(f'classification report')
+    print(class_report)
+    print ('-------------------------------\n')
+    print('confusion matrix')
+    print(f'{matrix}\n')
+    print(f'{data_set} model metrics')
+    print('---------------------------------')
+    print(f'True positive rate for the model is {tpr:.2%}')
+    print(f'False positive rate for the model is  {fpr:.2%}')
+    print(f'True negative rate for the model is {tnr:.2%}')
+    print(f'False negative rate for the model is {fnr:.2%}\n')
+
+#function to explore univariate features
 def explore_univariate(train, cat_vars, quant_vars):
     for var in cat_vars:
         explore_univariate_categorical(train, var)
@@ -59,8 +99,8 @@ def explore_univariate_categorical(train, cat_var):
     a frequency table and barplot of the frequencies. 
     '''
     frequency_table = freq_table(train, cat_var)
-    plt.figure(figsize=(2,2))
-    sns.barplot(x=cat_var, y='Count', data=frequency_table, color='lightseagreen')
+    plt.figure(figsize=(4,4))
+    sns.barplot(x=cat_var, y='Count', data=frequency_table, color='#ff24db')
     plt.title(cat_var)
     plt.show()
     print(frequency_table)
@@ -74,7 +114,7 @@ def explore_univariate_quant(train, quant_var):
     plt.figure(figsize=(8,2))
 
     p = plt.subplot(1, 2, 1)
-    p = plt.hist(train[quant_var], color='lightseagreen')
+    p = plt.hist(train[quant_var], color='#ff24db')
     p = plt.title(quant_var)
 
     # second plot: box plot
@@ -150,7 +190,7 @@ def run_chi2(train, cat_var, target):
 
 def plot_cat_by_target(train, target, cat_var):
     p = plt.figure(figsize=(2,2))
-    p = sns.barplot(cat_var, target, data=train, alpha=.8, color='lightseagreen')
+    p = sns.barplot(cat_var, target, data=train, alpha=.8, color='#ff24db')
     overall_rate = train[target].mean()
     p = plt.axhline(overall_rate, ls='--', color='gray')
     return p
@@ -167,7 +207,7 @@ def plot_swarm(train, target, quant_var):
 
 def plot_boxen(train, target, quant_var):
     average = train[quant_var].mean()
-    p = sns.boxenplot(data=train, x=target, y=quant_var, color='lightseagreen')
+    p = sns.boxenplot(data=train, x=target, y=quant_var, color='#ff24db')
     p = plt.title(quant_var)
     p = plt.axhline(average, ls='--', color='black')
     return p
@@ -217,3 +257,26 @@ def plot_swarm_grid_with_color(train, target, cat_vars, quant_vars):
             ax[i].set_ylabel(quant)
             ax[i].set_title(cat)
         plt.show()
+
+#prep function for exploring
+def prep_telco_explore(df):
+    """
+    This functions takes in the telco churn dataframe and retuns the cleaned and prepped dataset
+    to use when doing exploratory data analysis
+    """
+    # list of columns to be dropped
+    columns_to_drop = ['customer_id']
+    
+    # drops columns listed above
+    df = df.drop(columns=columns_to_drop)
+    
+    #add autopay column
+    df['autopay'] = (((df['payment_type'] == "Credit card (automatic)") == True) | ((df['payment_type'] == "Bank transfer (automatic)") == True)).astype(int)
+    
+    # Replace rows with no value in the total_charges column
+    df.total_charges = pd.to_numeric(df.total_charges, errors='coerce').astype('float64')
+    df.total_charges = df.total_charges.fillna(value="0")
+    
+    train, validate, test = split_data(df)
+
+    return train, validate, test
